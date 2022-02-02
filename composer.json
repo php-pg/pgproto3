@@ -1,0 +1,43 @@
+{
+    "name": "php-pg/pgproto3",
+    "description": "Is an encoder and decoder of the PostgreSQL wire protocol version 3",
+    "keywords": [
+        "postgres",
+        "postgresql",
+        "wire",
+        "protocol",
+        "encode",
+        "decode",
+        "amphp"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Dmitry K.",
+            "email": "coder1994@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=8.1",
+        "amphp/amp": "v3.x-dev",
+        "amphp/byte-stream": "v2.x-dev",
+        "psr/log": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PhpPg\\PgProto3\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PhpPg\\PgProto3\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.4",
+        "phpunit/phpunit": "^9.5"
+    }
+}
