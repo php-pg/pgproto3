@@ -6,5 +6,4 @@ namespace PhpPg\PgProto3\Messages;
 
 interface FrontendMessageInterface extends MessageInterface
 {
-
 }
