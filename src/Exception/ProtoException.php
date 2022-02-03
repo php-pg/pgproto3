@@ -6,5 +6,4 @@ namespace PhpPg\PgProto3\Exception;
 
 class ProtoException extends \Exception
 {
-
 }

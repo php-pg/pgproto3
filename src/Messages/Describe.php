@@ -15,7 +15,6 @@ class Describe implements FrontendMessageInterface
     public function __construct(
         /** 'S' = prepared statement, 'P' = portal */
         public string $objectType = '',
-
         public string $name = '',
     ) {
     }
