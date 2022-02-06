@@ -27,9 +27,8 @@ interface FrontendInterface
      * @return BackendMessageInterface
      *
      * @throws \Amp\ByteStream\ClosedException
-     * @throws Exception\UnknownMessageTypeException
-     * @throws Exception\UnknownAuthMessageTypeException
      * @throws \Amp\CancelledException
+     * @throws Exception\ProtoException
      */
     public function receive(?\Amp\Cancellation $cancellation = null): BackendMessageInterface;
 }

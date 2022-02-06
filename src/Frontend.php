@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace PhpPg\PgProto3;
 
-use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use PhpPg\PgProto3\Helper\BinaryStream;
@@ -124,7 +123,7 @@ class Frontend implements FrontendInterface
     /**
      * @param FrontendMessageInterface $msg
      * @return void
-     * @throws ClosedException
+     * @throws \Amp\ByteStream\ClosedException
      */
     public function send(FrontendMessageInterface $msg): void
     {
@@ -145,7 +144,7 @@ class Frontend implements FrontendInterface
     /**
      * @param array<FrontendMessageInterface> $msgs
      * @return void
-     * @throws ClosedException
+     * @throws \Amp\ByteStream\ClosedException
      */
     public function sendBulk(array $msgs): void
     {
@@ -171,8 +170,11 @@ class Frontend implements FrontendInterface
     }
 
     /**
+     * @param Cancellation|null $cancellation
      * @return BackendMessageInterface
-     * @throws ClosedException
+     * @throws \Amp\ByteStream\ClosedException
+     * @throws \Amp\CancelledException
+     * @throws Exception\ProtoException
      */
     public function receive(?Cancellation $cancellation = null): BackendMessageInterface
     {
