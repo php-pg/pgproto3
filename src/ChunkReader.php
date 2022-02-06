@@ -26,6 +26,7 @@ class ChunkReader implements ChunkReaderInterface
      * @param positive-int|null $n
      * @return string
      * @throws ClosedException
+     * @throws \Amp\CancelledException
      */
     public function read(?Cancellation $cancellation = null, ?int $n = null): string
     {
@@ -65,6 +66,7 @@ class ChunkReader implements ChunkReaderInterface
      * @param Cancellation|null $cancellation
      * @return void
      * @throws ClosedException
+     * @throws \Amp\CancelledException
      */
     private function appendAtLeast(int $n, ?Cancellation $cancellation = null): void
     {
