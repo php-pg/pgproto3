@@ -33,7 +33,7 @@ class ParameterDescription implements BackendMessageInterface
             $buffer->readUInt16BE();
 
             // Instead, infer parameter count by remaining size of message
-            $parameterCount = $buffer->getSize() / 4;
+            $parameterCount = $buffer->getRemainingSize() / 4;
             if (!\is_int($parameterCount)) {
                 throw new InvalidMessageFormatException($this->getName(), null);
             }
