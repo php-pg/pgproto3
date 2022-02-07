@@ -144,8 +144,6 @@ class ChunkReader implements ChunkReaderInterface
         }
 
         $this->writePos -= $this->readPos;
-
-        $this->writePos = $this->getAvailableBytesToRead();
         $this->readPos = 0;
         $this->buffer = $newBuffer;
     }
