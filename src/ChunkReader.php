@@ -7,121 +7,144 @@ namespace PhpPg\PgProto3;
 use Amp\ByteStream\ClosedException;
 use Amp\ByteStream\ReadableStream;
 use Amp\Cancellation;
+use Amp\CancelledException;
+use InvalidArgumentException;
+
+use function str_repeat;
+use function strlen;
+use function substr;
 
 class ChunkReader implements ChunkReaderInterface
 {
     private string $buffer;
-    private int $wp = 0;
-    private int $rp = 0;
+    private int $readPos = 0;
+    private int $writePos = 0;
 
     public function __construct(
-        private ReadableStream $reader,
+        private ReadableStream $stream,
         private int $minBufferSize = 8192,
     ) {
-        $this->buffer = $this->newBuf();
+        $this->buffer = $this->newBuffer($this->minBufferSize);
     }
 
     /**
      * @param Cancellation|null $cancellation
-     * @param positive-int|null $n
+     * @param int|null $n throws InvalidArgumentException when $n < 1
      * @return string
+     *
      * @throws ClosedException
-     * @throws \Amp\CancelledException
+     * @throws CancelledException
      */
     public function read(?Cancellation $cancellation = null, ?int $n = null): string
     {
-        if ($n === null) {
-            throw new \InvalidArgumentException('Number of bytes to read must not be null');
+        if ($n === null || $n < 1) {
+            throw new InvalidArgumentException('n must be greater than 0');
         }
 
-        // n bytes already in buf
-        if (($this->wp - $this->rp) >= $n) {
-            $buf = \substr($this->buffer, $this->rp, $n);
-            $this->rp += $n;
+        $availBytesToRead = $this->getAvailableBytesToRead();
+
+        // n bytes are already in buffer
+        if ($availBytesToRead >= $n) {
+            $buf = substr($this->buffer, $this->readPos, $n);
+            $this->readPos += $n;
 
             return $buf;
         }
 
-        if ($this->minBufferSize < $n) {
-            throw new \InvalidArgumentException('Cannot read more than buffer size');
+        // Buffer size is less than read size
+        if (strlen($this->buffer) < $n) {
+            $this->copyBuffer($this->newBuffer($n));
         }
 
-        $minReadCount = $n - ($this->wp - $this->rp);
+        $minReadCount = $n - $availBytesToRead;
 
-        // buf is large enough, but need to shift filled area to start to make enough contiguous space
-        if (($this->minBufferSize - $this->wp) < $minReadCount) {
-            $this->shiftBuffer();
+        // Buffer size is enough, but need to shift data
+        if (strlen($this->buffer) < $minReadCount) {
+            $this->copyBuffer($this->newBuffer($minReadCount));
         }
 
         $this->appendAtLeast($minReadCount, $cancellation);
 
-        $result = \substr($this->buffer, $this->rp, $n);
-        $this->rp += $n;
+        $buf = substr($this->buffer, $this->readPos, $n);
+        $this->readPos += $n;
 
-        return $result;
+        return $buf;
+    }
+
+    public function close(): void
+    {
+        $this->stream->isClosed();
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->stream->isClosed();
+    }
+
+    public function isReadable(): bool
+    {
+        return $this->stream->isReadable();
+    }
+
+    private function getAvailableBytesToRead(): int
+    {
+        return $this->writePos - $this->readPos;
     }
 
     /**
      * @param int $n
      * @param Cancellation|null $cancellation
      * @return void
+     *
      * @throws ClosedException
-     * @throws \Amp\CancelledException
+     * @throws CancelledException
      */
-    private function appendAtLeast(int $n, ?Cancellation $cancellation = null): void
+    private function appendAtLeast(int $n, ?Cancellation $cancellation): void
     {
         $readLen = 0;
 
         while ($readLen < $n) {
-            $readBytes = $this->reader->read($cancellation);
-            /** @noinspection PhpConditionAlreadyCheckedInspection */
-            if ($readBytes === null) {
-                throw new ClosedException('Socket closed');
+            $data = $this->stream->read($cancellation);
+            if ($data === null) {
+                throw new ClosedException('The stream closed before the given number of bytes were read');
             }
 
-            $readLen += \strlen($readBytes);
+            $dataLen = strlen($data);
+            $readLen += $dataLen;
 
-            for ($i = 0; $i < $readLen; $i++) {
-                $this->buffer[$this->wp + $i] = $readBytes[$i];
+            $bufLen = strlen($this->buffer);
+
+            // Buffer space is not enough, need to allocate more space
+            if ($dataLen > $bufLen - $this->writePos) {
+                $this->copyBuffer($this->newBuffer($dataLen + $bufLen));
             }
 
-            $this->wp += $readLen;
+            for ($i = 0; $i < $dataLen; $i++) {
+                $this->buffer[$this->writePos + $i] = $data[$i];
+            }
+
+            $this->writePos += $dataLen;
         }
     }
 
-    private function newBuf(): string
+    private function newBuffer(int $len): string
     {
-        return \str_pad('', $this->minBufferSize, "\0");
-    }
-
-    private function shiftBuffer(): void
-    {
-        $newBuf = $this->newBuf();
-
-        $moveLen = $this->wp - $this->rp;
-        $move = \substr($this->buffer, $this->rp, $moveLen);
-
-        for ($i = 0; $i < $moveLen; $i++) {
-            $newBuf[$i] = $move[$i];
+        if ($len < $this->minBufferSize) {
+            $len = $this->minBufferSize;
         }
 
-        $this->wp -= $this->rp;
-        $this->rp = 0;
-        $this->buffer = $newBuf;
+        return str_repeat("\0", $len);
     }
 
-    public function close(): void
+    private function copyBuffer(string $newBuffer): void
     {
-        $this->reader->close();
-    }
+        // Copy data
+        for ($i = $this->readPos; $i < $this->writePos; $i++) {
+            $newBuffer[$i] = $this->buffer[$i];
+        }
 
-    public function isClosed(): bool
-    {
-        return $this->reader->isClosed();
-    }
-
-    public function isReadable(): bool
-    {
-        return $this->reader->isReadable();
+        $this->writePos = $this->getAvailableBytesToRead();
+        $this->readPos = 0;
+        $this->buffer = $newBuffer;
     }
 }

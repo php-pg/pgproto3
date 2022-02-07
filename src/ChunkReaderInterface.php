@@ -12,7 +12,7 @@ interface ChunkReaderInterface extends ReadableStream
 {
     /**
      * @param Cancellation|null $cancellation
-     * @param positive-int|null $n
+     * @param int|null $n
      * @return string
      *
      * @throws ClosedException
