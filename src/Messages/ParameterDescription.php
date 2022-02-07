@@ -29,7 +29,14 @@ class ParameterDescription implements BackendMessageInterface
         $buffer = new BinaryStream($data);
 
         try {
-            $parameterCount = $buffer->readUInt16BE();
+            // Reported parameter count will be incorrect when number of args is greater than uint16
+            $buffer->readUInt16BE();
+
+            // Instead, infer parameter count by remaining size of message
+            $parameterCount = $buffer->getSize() / 4;
+            if (!\is_int($parameterCount)) {
+                throw new InvalidMessageFormatException($this->getName(), null);
+            }
 
             for ($i = 0; $i < $parameterCount; $i++) {
                 $this->parameterOIDs[] = $buffer->readUInt32BE();
