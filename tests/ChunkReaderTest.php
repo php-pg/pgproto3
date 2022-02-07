@@ -9,6 +9,9 @@ use PhpPg\PgProto3\ChunkReader;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
+use function str_repeat;
+use function strlen;
+
 class ChunkReaderTest extends TestCase
 {
     private ReadableStream|MockObject $stream;
@@ -24,10 +27,39 @@ class ChunkReaderTest extends TestCase
 
     public function testReadMoreThanBufferSize(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Cannot read more than buffer size');
+        $this
+            ->stream
+            ->expects(self::exactly(2))
+            ->method('read')
+            ->willReturnOnConsecutiveCalls(
+                str_repeat("0", 100),
+                "1",
+            );
 
-        $this->reader->read(null, 101);
+        $result = $this->reader->read(null, 101);
+        self::assertSame(strlen($result), 101);
+        self::assertSame(str_repeat('0', 100) . '1', $result);
+    }
+
+    public function testReadStreamReturnedMoreThanBufferSize(): void
+    {
+        $this
+            ->stream
+            ->expects(self::exactly(2))
+            ->method('read')
+            ->willReturnOnConsecutiveCalls(
+                str_repeat('0', 100),
+                // Stream returned more data than requested and more than current buffer size
+                '1' . str_repeat('2', 200),
+            );
+
+        $result = $this->reader->read(null, 101);
+        self::assertSame(strlen($result), 101);
+        self::assertSame(str_repeat('0', 100) . '1', $result);
+
+        $result = $this->reader->read(null, 200);
+        self::assertSame(200, strlen($result));
+        self::assertSame(str_repeat('2', 200), $result);
     }
 
     public function testReturnsDataWithoutIO(): void
@@ -36,10 +68,15 @@ class ChunkReaderTest extends TestCase
             ->stream
             ->expects(self::once())
             ->method('read')
-            ->willReturn(\str_pad('', 100, "\0"));
+            ->willReturn(str_repeat('0', 50) . str_repeat('1', 50));
 
-        $this->reader->read(null, 50);
-        $this->reader->read(null, 50);
+        $result = $this->reader->read(null, 50);
+        self::assertSame(50, strlen($result));
+        self::assertSame(str_repeat('0', 50), $result);
+
+        $result = $this->reader->read(null, 50);
+        self::assertSame(50, strlen($result));
+        self::assertSame(str_repeat('1', 50), $result);
     }
 
     public function testDoingIOWhenNeedMoreData(): void
@@ -49,7 +86,7 @@ class ChunkReaderTest extends TestCase
             ->expects(self::exactly(2))
             ->method('read')
             ->willReturnOnConsecutiveCalls(
-                \str_pad('', 100, "a"),
+                str_repeat('a', 100),
                 "b"
             );
 
