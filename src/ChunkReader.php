@@ -139,9 +139,11 @@ class ChunkReader implements ChunkReaderInterface
     private function copyBuffer(string $newBuffer): void
     {
         // Copy data
-        for ($i = $this->readPos; $i < $this->writePos; $i++) {
-            $newBuffer[$i] = $this->buffer[$i];
+        for ($i = $this->readPos, $j = 0; $i < $this->writePos; $i++, $j++) {
+            $newBuffer[$j] = $this->buffer[$i];
         }
+
+        $this->writePos -= $this->readPos;
 
         $this->writePos = $this->getAvailableBytesToRead();
         $this->readPos = 0;
