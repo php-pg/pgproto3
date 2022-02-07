@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 
 use function str_repeat;
 use function strlen;
+use function substr;
 
 class ChunkReaderTest extends TestCase
 {
@@ -43,23 +44,35 @@ class ChunkReaderTest extends TestCase
 
     public function testReadStreamReturnedMoreThanBufferSize(): void
     {
+        $str = '';
+
+        for ($i = 0; $i < 30; $i++) {
+            for ($j = 0; $j < 10; $j++) {
+                $str .= $j;
+            }
+        }
+
         $this
             ->stream
             ->expects(self::exactly(2))
             ->method('read')
             ->willReturnOnConsecutiveCalls(
-                str_repeat('0', 100),
+                substr($str, 0, 100),
                 // Stream returned more data than requested and more than current buffer size
-                '1' . str_repeat('2', 200),
+                '1' . substr($str, 100, 200),
             );
 
         $result = $this->reader->read(null, 101);
         self::assertSame(strlen($result), 101);
-        self::assertSame(str_repeat('0', 100) . '1', $result);
+        self::assertSame(substr($str, 0, 100) . '1', $result);
 
-        $result = $this->reader->read(null, 200);
-        self::assertSame(200, strlen($result));
-        self::assertSame(str_repeat('2', 200), $result);
+        $result = $this->reader->read(null, 150);
+        self::assertSame(150, strlen($result));
+        self::assertSame(substr($str, 100, 150), $result);
+
+        $result = $this->reader->read(null, 50);
+        self::assertSame(50, strlen($result));
+        self::assertSame(substr($str, 250, 50), $result);
     }
 
     public function testReturnsDataWithoutIO(): void
