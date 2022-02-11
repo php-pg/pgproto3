@@ -10,13 +10,12 @@ use Amp\Cancellation;
 use Amp\CancelledException;
 use InvalidArgumentException;
 
-use function str_repeat;
 use function strlen;
 use function substr;
 
 class ChunkReader implements ChunkReaderInterface
 {
-    private string $buffer;
+    private string $buffer = '';
     private int $readPos = 0;
     private int $writePos = 0;
 
@@ -24,7 +23,6 @@ class ChunkReader implements ChunkReaderInterface
         private ReadableStream $stream,
         private int $minBufferSize = 8192,
     ) {
-        $this->buffer = $this->newBuffer($this->minBufferSize);
     }
 
     /**
@@ -51,22 +49,19 @@ class ChunkReader implements ChunkReaderInterface
             return $buf;
         }
 
-        // Buffer size is less than read size
-        if (strlen($this->buffer) < $n) {
-            $this->copyBuffer($this->newBuffer($n));
-        }
-
         $minReadCount = $n - $availBytesToRead;
-
-        // Buffer size is enough, but need to shift data
-        if (strlen($this->buffer) < $minReadCount) {
-            $this->copyBuffer($this->newBuffer($minReadCount));
-        }
 
         $this->appendAtLeast($minReadCount, $cancellation);
 
         $buf = substr($this->buffer, $this->readPos, $n);
         $this->readPos += $n;
+
+        // Cut buffer
+        if (strlen($this->buffer) > $this->minBufferSize) {
+            $this->buffer = substr($this->buffer, $this->readPos, $this->getAvailableBytesToRead());
+            $this->readPos = 0;
+            $this->writePos = strlen($this->buffer);
+        }
 
         return $buf;
     }
@@ -112,39 +107,8 @@ class ChunkReader implements ChunkReaderInterface
             $dataLen = strlen($data);
             $readLen += $dataLen;
 
-            $bufLen = strlen($this->buffer);
-
-            // Buffer space is not enough, need to allocate more space
-            if ($dataLen > $bufLen - $this->writePos) {
-                $this->copyBuffer($this->newBuffer($dataLen + $bufLen));
-            }
-
-            for ($i = 0; $i < $dataLen; $i++) {
-                $this->buffer[$this->writePos + $i] = $data[$i];
-            }
-
+            $this->buffer .= $data;
             $this->writePos += $dataLen;
         }
-    }
-
-    private function newBuffer(int $len): string
-    {
-        if ($len < $this->minBufferSize) {
-            $len = $this->minBufferSize;
-        }
-
-        return str_repeat("\0", $len);
-    }
-
-    private function copyBuffer(string $newBuffer): void
-    {
-        // Copy data
-        for ($i = $this->readPos, $j = 0; $i < $this->writePos; $i++, $j++) {
-            $newBuffer[$j] = $this->buffer[$i];
-        }
-
-        $this->writePos -= $this->readPos;
-        $this->readPos = 0;
-        $this->buffer = $newBuffer;
     }
 }
