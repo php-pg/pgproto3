@@ -8,24 +8,21 @@ use InvalidArgumentException;
 use OutOfBoundsException;
 use RuntimeException;
 
-use function count;
-use function implode;
 use function pack;
+use function strpos;
+use function substr;
 use function unpack;
 use function str_split;
 
-class BinaryStream
+class BinaryStream implements \Stringable
 {
-    /**
-     * @var array<int, string>
-     */
-    private array $buffer;
+    private string $buffer;
 
     private int $offset;
 
     public function __construct(string $buffer = '', int $offset = 0)
     {
-        $this->buffer = self::splitToBytes($buffer);
+        $this->buffer = $buffer;
         $this->setOffset($offset);
     }
 
@@ -117,10 +114,12 @@ class BinaryStream
             throw new OutOfBoundsException('Buffer remaining size is less than 1 byte');
         }
 
-        $byte = unpack('C', $this->buffer[$this->offset++]);
+        $byte = unpack('C', $this->buffer, $this->offset);
         if (false === $byte) {
             throw new RuntimeException('Cannot read UInt8');
         }
+
+        $this->offset++;
 
         return $byte[1];
     }
@@ -136,11 +135,12 @@ class BinaryStream
             throw new OutOfBoundsException('Buffer remaining size is less than 2 bytes');
         }
 
-        $str = $this->buffer[$this->offset++] . $this->buffer[$this->offset++];
-        $short = unpack('n', $str);
+        $short = unpack('n', $this->buffer, $this->offset);
         if (false === $short) {
             throw new RuntimeException('Cannot read UInt16');
         }
+
+        $this->offset += 2;
 
         return $short[1];
     }
@@ -156,15 +156,12 @@ class BinaryStream
             throw new OutOfBoundsException('Buffer remaining size is less than 4 bytes');
         }
 
-        $str = $this->buffer[$this->offset++] .
-            $this->buffer[$this->offset++] .
-            $this->buffer[$this->offset++] .
-            $this->buffer[$this->offset++];
-
-        $long = unpack('N', $str);
+        $long = unpack('N', $this->buffer, $this->offset);
         if (false === $long) {
             throw new RuntimeException('Cannot read UInt32');
         }
+
+        $this->offset += 4;
 
         return $long[1];
     }
@@ -177,45 +174,17 @@ class BinaryStream
      */
     public function readCString(): string
     {
-        $result = '';
-        $found = false;
-
-        while ($this->offset < $this->getSize()) {
-            $byte = $this->buffer[$this->offset++];
-            if ($byte === "\0") {
-                $found = true;
-                break;
-            }
-
-            $result .= $byte;
-        }
-
-        if (!$found) {
+        $nullTerminator = strpos($this->buffer, "\0", $this->offset);
+        if (false === $nullTerminator) {
             throw new OutOfBoundsException('Cannot find end of CString');
         }
 
+        $length = $nullTerminator - $this->offset;
+
+        $result = substr($this->buffer, $this->offset, $length);
+        $this->offset += $length + 1;
+
         return $result;
-    }
-
-    /**
-     * @param int $count
-     * @return array<int, string>
-     *
-     * @throws OutOfBoundsException
-     */
-    public function readBytes(int $count): array
-    {
-        if ($this->getRemainingSize() < $count) {
-            throw new OutOfBoundsException("Buffer remaining size is less than {$count} bytes");
-        }
-
-        $res = [];
-
-        for ($i = 0; $i < $count; $i++) {
-            $res[] = $this->buffer[$this->offset++];
-        }
-
-        return $res;
     }
 
     /**
@@ -230,11 +199,8 @@ class BinaryStream
             throw new OutOfBoundsException("Buffer remaining size is less than {$count} bytes");
         }
 
-        $str = '';
-
-        for ($i = 0; $i < $count; $i++) {
-            $str .= $this->buffer[$this->offset++];
-        }
+        $str = substr($this->buffer, $this->offset, $count);
+        $this->offset += $count;
 
         return $str;
     }
@@ -260,7 +226,7 @@ class BinaryStream
 
     public function getBuffer(): string
     {
-        return implode('', $this->buffer);
+        return $this->buffer;
     }
 
     public function getOffset(): int
@@ -281,17 +247,9 @@ class BinaryStream
         $this->offset = $offset;
     }
 
-    /**
-     * @return array<int, string>
-     */
-    public function getRawBuffer(): array
-    {
-        return $this->buffer;
-    }
-
     public function getSize(): int
     {
-        return count($this->buffer);
+        return strlen($this->buffer);
     }
 
     public function getRemainingSize(): int

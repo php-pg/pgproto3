@@ -13,21 +13,19 @@ class CommandComplete implements BackendMessageInterface
 
     public const TYPE = 'C';
 
-    public CommandTag $commandTag;
+    public function __construct(public string $commandTag = '')
+    {
+    }
 
     public function decode(string $data): void
     {
         $stream = new BinaryStream($data);
 
         try {
-            $tag = $stream->readCString();
+            $this->commandTag = $stream->readCString();
         } catch (\OutOfBoundsException $e) {
             throw new InvalidMessageFormatException($this->getName(), $e);
         }
-
-        $this->commandTag = new CommandTag(
-            tag: $tag,
-        );
     }
 
     public function encode(): string
